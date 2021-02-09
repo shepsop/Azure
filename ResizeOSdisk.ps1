@@ -1,10 +1,11 @@
 <#
 This script assumes you are connected to Azure.
 
-The disk being resized needs to be shrunk inside the guest OS to a size equal or smaller than the new size.  You are better off shrinking to a smaller size than the $DiskSizeGB parameter and expanding the disk after resize is complete.
-
+The disk being resized needs to be shrunk inside the guest OS to a size equal or smaller than the new size.  
+You are better off shrinking to a smaller size than the $DiskSizeGB parameter and expanding the disk after resize is complete.
 
 #>
+
 Param(
     [Parameter(
         Mandatory=$true)]
@@ -20,13 +21,24 @@ Param(
         [string] $AzSubscription
     )              
 
-#Provide the subscription Id of the subscription where snapshot is created
+# Provide the subscription Id of the subscription where snapshot is created
 Select-AzSubscription -Subscription $AzSubscription
 
 # VM to resize disk 
-$VM = Get-AzVm | Where-Object Name -eq $VMName
+$VM = Get-AzVm -name $VMName
 
-#Provide the name of your resource group where snapshot is created
+# stop VM if it is not stopped
+$status = (Get-AzVm -Name $vm.Name -ResourceGroupName $vm.ResourceGroupName -Status).Statuses[1].DisplayStatus
+
+if ($status -ne "VM deallocated")
+    {  
+        Stop-AzVm -Name $vm.Name -ResourceGroupName $vm.ResourceGroupName -confirm:$false -force
+    } 
+
+while(($state = Get-AzVm -Name $vm.Name -ResourceGroupName $vm.ResourceGroupName -Status).Statuses[1].DisplayStatus -ne "VM deallocated") { $state; Start-Sleep -Seconds 20 }
+$state
+
+#Gets the resourcegroupname from vm name
 $resourceGroupName = $VM.ResourceGroupName
 
 # Get Disk from ID
@@ -84,7 +96,7 @@ $VM = Add-AzVMDataDisk `
     -ManagedDiskId $dataDisk.Id `
     -Lun 63
 
-Update-AzVM -ResourceGroupName $resourceGroupName -VM $VM
+Update-AzVM -ResourceGroupName $resourceGroupName -VM $VM.name
 
 $VM | Stop-AzVM -Force
 
